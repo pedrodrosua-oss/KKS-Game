@@ -101,9 +101,53 @@ export default function App(){
   // Normaliza tarjetas desde el JSON generado
   const cards = useMemo(() => {
     const list = raw.cards || []
-    // Cada card: {id, category, sheet, prompt, answer, es, en, extra}
-    return list
+
+    // Tu JSON trae cartas con formato:
+    // { type, q, a, sheet, nivel, en }
+    // q = "¿Qué significa AD?"  -> AD es el KKS
+    // a = "Sistemas 220–245 kV" -> Español/Descripción
+    // Vamos a normalizarlo al formato que usa la app:
+    // { id, category, sheet, prompt (KKS), answer (ES), en, extra }
+
+    const normalized = list.map((c, i) => {
+      const q = (c?.q ?? '').toString().trim()
+      const a = (c?.a ?? '').toString().trim()
+      const en = (c?.en ?? '').toString().trim()
+      const sheet = (c?.sheet ?? '').toString().trim()
+      const nivel = (c?.nivel ?? '').toString().trim()
+      const type = (c?.type ?? '').toString().trim()
+
+      // Extrae el código KKS del texto "¿Qué significa XX?"
+      // Si no matchea, usa q como fallback.
+      let kks = ''
+      const m1 = q.match(/significa\s+([^?¿]+)\?/i)
+      if (m1?.[1]) kks = m1[1].trim()
+      else {
+        // fallback simple
+        kks = q.replace(/^¿?\s*Qué\s+significa\s+/i, '').replace(/\?$/, '').trim()
+      }
+      if (!kks) kks = q
+
+      const category = sheet || nivel || type || 'General'
+
+      return {
+        id: `${category}-${kks}-${i}`,
+        category,
+        sheet,
+        nivel,
+        type,
+        prompt: kks,    // KKS
+        answer: a,      // Español / descripción
+        es: a,
+        en,
+        extra: q
+      }
+    })
+
+    // Filtra cartas rotas
+    return normalized.filter(c => c.prompt && c.answer)
   }, [])
+
 
   const categories = useMemo(() => {
     const set = new Set(cards.map(c => c.category))
